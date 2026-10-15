@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+# Personal data stays local
+data/
+*.local.csv

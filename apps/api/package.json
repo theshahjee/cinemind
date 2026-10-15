@@ -1,0 +1,25 @@
+{
+  "name": "@cinemind/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "worker": "node dist/worker.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "seed": "tsx src/seedCatalogue.ts"
+  },
+  "dependencies": {
+    "@cinemind/core": "workspace:*",
+    "@cinemind/db": "workspace:*",
+    "@fastify/cors": "^11.3.1",
+    "fastify": "^5.12.7",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
+  }
+}

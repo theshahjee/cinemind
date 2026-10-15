@@ -1,0 +1,27 @@
+{
+  "name": "cinemind",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hosted movie and TV recommendation engine that learns your taste from your own ratings.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev:api": "pnpm --filter @cinemind/api dev",
+    "dev:web": "pnpm --filter @cinemind/web dev",
+    "db:migrate": "pnpm --filter @cinemind/db migrate",
+    "eval": "pnpm --filter @cinemind/core eval"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

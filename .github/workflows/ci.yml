@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: cinemind
+          POSTGRES_PASSWORD: cinemind
+          POSTGRES_DB: cinemind
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cinemind"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://cinemind:cinemind@localhost:5432/cinemind
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Offline evaluation (synthetic)
+        run: pnpm eval | tee -a "$GITHUB_STEP_SUMMARY"
