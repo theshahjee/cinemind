@@ -86,7 +86,7 @@ Then run `pnpm dev:api` and `pnpm dev:web` in two terminals. If `DATABASE_URL` i
 | IMDb ratings export | Yes, it's your data | IMDb → Your Ratings → ⋯ → Export |
 | IMDb datasets | For the candidate catalogue | Downloaded by the seeder, no key. [Personal, non-commercial use only](https://developer.imdb.com/non-commercial-datasets/). |
 | TMDB read access token | Recommended | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api). Free for non-commercial use with attribution. Adds posters, cast, keywords and plots, and plots are what embeddings are built from. |
-| Trakt client ID | Optional | Create an app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) with redirect URI `urn:ietf:wg:oauth:2.0:oob`. Trakt's guide says app creation needs a verified GitHub account. |
+| Trakt client ID | Optional | Create an app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications). CineMind connects with a device code and never uses the redirect URI, but Trakt requires an `https://` one, so the repo URL works. Trakt's guide says app creation needs a verified GitHub account. |
 | LLM | Optional | See below |
 
 ### Choosing an LLM

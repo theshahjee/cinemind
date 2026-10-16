@@ -100,7 +100,6 @@ export class TraktClient {
     const res = await this.post("/oauth/token", {
       refresh_token: refreshToken,
       client_id: this.clientId,
-      redirect_uri: "urn:ietf:wg:oauth:2.0:oob",
       grant_type: "refresh_token",
     });
     // Refresh tokens are single-use. A failure here usually means the user has to connect again.
