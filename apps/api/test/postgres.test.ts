@@ -13,7 +13,7 @@ describe.skipIf(!url)("PostgresRepository", () => {
   beforeAll(async () => {
     await migrate(url!, () => {});
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("TRUNCATE titles, users, jobs, oauth_clients CASCADE");
+    await pool.query("TRUNCATE titles, users, jobs CASCADE");
     repo = new PostgresRepository(pool, "test-model");
   });
   afterAll(() => pool?.end());
