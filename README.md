@@ -129,7 +129,7 @@ Every route except `/health` needs `Authorization: Bearer $CINEMIND_API_TOKEN`.
 pnpm build && pnpm test
 ```
 
-The Postgres repository tests run when `DATABASE_URL` is set, and are skipped otherwise. CI runs them against pgvector and posts the evaluation table to each run's summary.
+The Postgres tests run when `TEST_DATABASE_URL` is set, and are skipped otherwise. They truncate tables, so they refuse any database whose name doesn't contain "test". Create one with `docker compose exec db createdb -U cinemind cinemind_test`. CI runs them against pgvector and posts the evaluation table to each run's summary.
 
 ## Status
 

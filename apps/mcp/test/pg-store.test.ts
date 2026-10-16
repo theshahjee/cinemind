@@ -1,9 +1,10 @@
-import { migrate } from "@cinemind/db";
+import { migrate, testDatabaseUrl } from "@cinemind/db";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PostgresOAuthStore, sha256 } from "../src/oauth/store.js";
 
-const url = process.env.DATABASE_URL;
+// Runs only with TEST_DATABASE_URL set, and never against a non-test database.
+const url = testDatabaseUrl();
 
 describe.skipIf(!url)("PostgresOAuthStore", () => {
   let pool: pg.Pool;

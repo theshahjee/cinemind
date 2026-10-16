@@ -1,10 +1,10 @@
-import { migrate } from "@cinemind/db";
+import { migrate, testDatabaseUrl } from "@cinemind/db";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PostgresRepository } from "../src/repo/postgres.js";
 
-// Runs only when a database is available (CI provides one; locally: docker compose up db).
-const url = process.env.DATABASE_URL;
+// Runs only with TEST_DATABASE_URL set, and never against a non-test database.
+const url = testDatabaseUrl();
 
 describe.skipIf(!url)("PostgresRepository", () => {
   let pool: pg.Pool;
