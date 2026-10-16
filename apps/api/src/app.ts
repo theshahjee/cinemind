@@ -6,7 +6,7 @@ import { extractConstraints, matchesConstraints } from "./ask.js";
 import { importImdbCsv, syncTrakt } from "./imports.js";
 import type { LlmProvider } from "./llm/provider.js";
 import type { FeedbackKind, Repository } from "./repo/types.js";
-import { recommend, tasteSummary } from "./service.js";
+import { rankedWatchlist, recommend, tasteSummary } from "./service.js";
 import type { TraktClient } from "./trakt.js";
 
 export interface AppDeps {
@@ -153,7 +153,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     },
   );
 
-  app.get("/api/watchlist", async () => (await repo.getWatchlist(await repo.getOwnerId())).map(stripEmbedding));
+  app.get<{ Querystring: { ranked?: boolean } }>(
+    "/api/watchlist",
+    { schema: { querystring: { type: "object", properties: { ranked: { type: "boolean", default: false } } } } },
+    async (req) => {
+      const userId = await repo.getOwnerId();
+      if (req.query.ranked) return (await rankedWatchlist(repo, userId)).map(present);
+      return (await repo.getWatchlist(userId)).map(stripEmbedding);
+    },
+  );
 
   app.put<{ Params: { id: string }; Body: { on: boolean } }>(
     "/api/watchlist/:id",

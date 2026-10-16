@@ -47,6 +47,29 @@ describe("importImdbRatings", () => {
     expect(res.skipped.map((s) => s.line)).toEqual([2, 3]);
   });
 
+  it("recognises a watchlist export and keeps list order", () => {
+    const LIST =
+      "Position,Const,Created,Modified,Description,Title,Original Title,URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,Release Date,Directors,Your Rating,Date Rated";
+    const csv = [
+      LIST,
+      "1,tt0000005,2025-01-01,2025-01-01,,Saved Film,,https://x,Movie,7.1,100,2020,Drama,5000,2020-01-01,Someone,,",
+      "2,tt0000006,2025-02-01,2025-02-01,,Saved Show,,https://x,TV Series,8.0,50,2019,Comedy,9000,2019-01-01,,7,2025-03-01",
+      "3,bad,2025-02-01,,,Broken,,,Movie,,,,,,,,,",
+    ].join("\n");
+    const res = importImdbRatings(csv);
+    expect(res.kind).toBe("list");
+    expect(res.listIds).toEqual(["tt0000005", "tt0000006"]);
+    expect(res.titles.map((t) => t.type)).toEqual(["movie", "tvSeries"]);
+    expect(res.ratings).toEqual([{ titleId: "tt0000006", rating: 7, ratedAt: new Date("2025-03-01") }]);
+    expect(res.skipped.map((s) => s.line)).toEqual([4]);
+  });
+
+  it("treats a ratings export as ratings", () => {
+    const res = importImdbRatings([HEADER, "tt0000001,9,2024-03-01,Film,,,Movie,,,,,,,"].join("\n"));
+    expect(res.kind).toBe("ratings");
+    expect(res.listIds).toEqual([]);
+  });
+
   it("rejects files that are not IMDb exports", () => {
     expect(() => importImdbRatings("foo,bar\n1,2")).toThrow(/Missing required column/);
   });

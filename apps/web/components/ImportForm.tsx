@@ -8,7 +8,7 @@ export function ImportForm() {
   return (
     <form action={action} className="flex flex-col gap-3 rounded-md border border-line bg-panel p-4 sm:flex-row sm:items-center">
       <label className="flex-1 text-sm">
-        <span className="mb-1 block text-muted">IMDb ratings export (Your Ratings → ⋯ → Export)</span>
+        <span className="mb-1 block text-muted">IMDb export: Your Ratings or your Watchlist (open the page → ⋯ → Export)</span>
         <input
           type="file"
           name="file"

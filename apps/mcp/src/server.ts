@@ -114,6 +114,17 @@ export function createMcpServer(client: CineMindClient, opts: ServerOptions): Mc
   );
 
   server.registerTool(
+    "watchlist",
+    {
+      title: "Watchlist, ranked",
+      description: "Titles the user saved to watch (from IMDb, Trakt or CineMind), ranked by how well each fits their taste. Use for \"what from my watchlist should I watch?\".",
+      inputSchema: { limit: z.number().int().min(1).max(100).default(20) },
+      annotations: READ,
+    },
+    async ({ limit }) => json(recs((await client.call<ApiRecommendation[]>("/api/watchlist?ranked=true")).slice(0, limit))),
+  );
+
+  server.registerTool(
     "taste_profile",
     {
       title: "Taste profile",

@@ -18,14 +18,15 @@ export async function importCsv(_prev: unknown, form: FormData): Promise<{ messa
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, message: "Choose your IMDb ratings CSV first." };
   try {
-    const res = await api<{ imported: number; skipped: { line: number; reason: string }[] }>("/api/import/imdb", {
+    const res = await api<{ kind: "ratings" | "list"; imported: number; watchlisted: number; skipped: { line: number; reason: string }[] }>("/api/import/imdb", {
       method: "POST",
       headers: { "content-type": "text/csv" },
       body: await file.text(),
     });
     revalidatePath("/", "layout");
     const skipped = res.skipped.length ? ` Skipped ${res.skipped.length} rows that couldn't be read.` : "";
-    return { ok: true, message: `Imported ${res.imported} ratings.${skipped}` };
+    const what = res.kind === "list" ? `Added ${res.watchlisted} titles to your watchlist.` : `Imported ${res.imported} ratings.`;
+    return { ok: true, message: `${what}${skipped}` };
   } catch (err) {
     return { ok: false, message: (err as Error).message };
   }

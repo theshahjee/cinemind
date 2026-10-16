@@ -4,15 +4,19 @@ import { traktToRating, traktToTitle, tokensExpired, type TraktClient, type Trak
 
 export type TitlesImportedHook = (ids: string[]) => Promise<void>;
 
-/** Import an IMDb ratings export. Shared by the upload endpoint and the watched import folder. */
+/**
+ * Import an IMDb export: "Your Ratings", or a list such as the Watchlist.
+ * Shared by the upload endpoint and the watched import folder.
+ */
 export async function importImdbCsv(repo: Repository, csv: string, onTitlesImported?: TitlesImportedHook) {
   const parsed = importImdbRatings(csv);
   const userId = await repo.getOwnerId();
   // Blank CSV fields never overwrite richer metadata already stored (see upsertTitles).
   await repo.upsertTitles(parsed.titles);
   await repo.upsertRatings(userId, parsed.ratings, "imdb_csv");
+  for (const id of parsed.listIds) await repo.setWatchlist(userId, id, true);
   await onTitlesImported?.(parsed.titles.map((t) => t.id));
-  return { imported: parsed.ratings.length, skipped: parsed.skipped };
+  return { kind: parsed.kind, imported: parsed.ratings.length, watchlisted: parsed.listIds.length, skipped: parsed.skipped };
 }
 
 export interface TraktSyncResult {

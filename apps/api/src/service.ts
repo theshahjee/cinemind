@@ -47,6 +47,17 @@ export async function recommend(repo: Repository, userId: string, opts: Recommen
   return hybridRecommender.recommend({ ratings, catalogue, candidates, k: opts.k });
 }
 
+/** The watchlist, ranked by how well each title fits the user's taste. */
+export async function rankedWatchlist(repo: Repository, userId: string): Promise<ScoredTitle[]> {
+  const [catalogue, { ratings }, watchlist] = await Promise.all([repo.getCatalogue(), effectiveRatings(repo, userId), repo.getWatchlist(userId)]);
+  return hybridRecommender.recommend({
+    ratings,
+    catalogue,
+    candidates: watchlist.map((t) => t.id),
+    k: watchlist.length,
+  });
+}
+
 export interface TasteSummary {
   ratedCount: number;
   inferredCount: number;

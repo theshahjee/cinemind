@@ -49,10 +49,28 @@ describe("auth", () => {
 describe("import and library", () => {
   it("imports an IMDb CSV and lists the library", async () => {
     const res = await app.inject({ method: "POST", url: "/api/import/imdb", headers: { ...auth, "content-type": "text/csv" }, payload: CSV });
-    expect(res.json()).toEqual({ imported: 3, skipped: [] });
+    expect(res.json()).toEqual({ kind: "ratings", imported: 3, watchlisted: 0, skipped: [] });
     const lib = (await app.inject({ url: "/api/library?minRating=8", headers: auth })).json();
     expect(lib.total).toBe(2);
     expect(lib.items[0].title.title).toBe("Heist Two");
+  });
+
+  it("imports an IMDb watchlist export onto the watchlist", async () => {
+    const list = [
+      "Position,Const,Created,Modified,Description,Title,Original Title,URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,Release Date,Directors,Your Rating,Date Rated",
+      "1,tt0000020,2025-01-01,2025-01-01,,Saved One,,,Movie,7.0,100,2020,Drama,5000,,Someone,,",
+      "2,tt0000021,2025-01-02,2025-01-02,,Saved Two,,,TV Series,8.0,45,2021,Comedy,8000,,,,",
+    ].join("\n");
+    const res = await app.inject({ method: "POST", url: "/api/import/imdb", headers: { ...auth, "content-type": "text/csv" }, payload: list });
+    expect(res.json()).toMatchObject({ kind: "list", imported: 0, watchlisted: 2 });
+    const wl = (await app.inject({ url: "/api/watchlist", headers: auth })).json();
+    expect(wl.map((t: { id: string }) => t.id).sort()).toEqual(["tt0000020", "tt0000021"]);
+    const ranked = (await app.inject({ url: "/api/watchlist?ranked=true", headers: auth })).json();
+    expect(ranked).toHaveLength(2);
+    expect(ranked[0]).toHaveProperty("explanation");
+    // Watchlisted titles are excluded from recommendations, since you've already picked them.
+    const recs = (await app.inject({ url: "/api/recommendations", headers: auth })).json();
+    expect(recs).toEqual([]);
   });
 
   it("returns 400 for a file that isn't an IMDb export", async () => {

@@ -190,7 +190,7 @@ describe("MCP over HTTP", () => {
 
     const list = await call(tokens.access_token, rpc("tools/list"));
     const names = list.result.tools.map((t: { name: string }) => t.name).sort();
-    expect(names).toEqual(["ask", "fetch", "get_title", "library", "recommend", "search", "search_titles", "taste_profile"]);
+    expect(names).toEqual(["ask", "fetch", "get_title", "library", "recommend", "search", "search_titles", "taste_profile", "watchlist"]);
     for (const t of list.result.tools) {
       expect(t.title).toBeTruthy();
       expect(t.annotations.readOnlyHint).toBe(true);

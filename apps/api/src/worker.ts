@@ -93,12 +93,12 @@ async function scanImportDir(dir: string) {
       const res = await importImdbCsv(repo, await readFile(src, "utf8"), enqueue);
       await mkdir(join(dir, "imported"), { recursive: true });
       await rename(src, join(dir, "imported", `${stamp}-${file}`));
-      console.log(`imported ${res.imported} ratings from ${file} (${res.skipped.length} rows skipped)`);
+      console.log(`imported ${file}: ${res.imported} ratings, ${res.watchlisted} watchlist titles, ${res.skipped.length} rows skipped`);
     } catch (err) {
       if (!(err instanceof ImportFormatError)) throw err;
       await mkdir(join(dir, "failed"), { recursive: true });
       await rename(src, join(dir, "failed", `${stamp}-${file}`));
-      console.error(`${file} is not an IMDb ratings export: ${err.message}`);
+      console.error(`${file} is not an IMDb ratings or list export: ${err.message}`);
     }
   }
 }
