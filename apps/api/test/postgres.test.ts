@@ -13,7 +13,7 @@ describe.skipIf(!url)("PostgresRepository", () => {
   beforeAll(async () => {
     await migrate(url!, () => {});
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("TRUNCATE titles, users, jobs CASCADE");
+    await pool.query("TRUNCATE titles, users, jobs, oauth_clients CASCADE");
     repo = new PostgresRepository(pool, "test-model");
   });
   afterAll(() => pool?.end());
@@ -55,6 +55,19 @@ describe.skipIf(!url)("PostgresRepository", () => {
     const cat = await repo.getCatalogue();
     expect(cat.get("tt0000101")?.embedding?.[0]).toBe(1);
     expect(cat.get("tt0000102")?.embedding).toBeUndefined();
+
+    // An older rating (e.g. a stale CSV re-import) must not replace a newer one.
+    await repo.upsertRatings(userId, [{ titleId: "tt0000101", rating: 3, ratedAt: new Date("2023-01-01") }], "imdb_csv");
+    expect((await repo.getRatings(userId))[0]!.rating).toBe(8);
+
+    expect((await repo.searchTitles("b", 5)).map((t) => t.id)).toEqual(["tt0000102"]);
+    expect(await repo.searchTitles("100%", 5)).toEqual([]);
+
+    await repo.saveIntegration(userId, "trakt", { access_token: "x" });
+    await repo.recordSync("trakt", { ratings: 1 });
+    expect(await repo.getIntegration("trakt")).toMatchObject({ data: { access_token: "x" }, lastSyncResult: { ratings: 1 } });
+    await repo.deleteIntegration("trakt");
+    expect(await repo.getIntegration("trakt")).toBeUndefined();
 
     expect(await repo.deleteRating(userId, "tt0000101")).toBe(true);
     expect(await repo.deleteRating(userId, "tt0000101")).toBe(false);

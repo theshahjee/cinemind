@@ -18,7 +18,21 @@ Rough order, following the original six-week plan. Things move when the evaluati
 - Offline evaluation harness and synthetic benchmark, run in CI
 - Docker Compose for the database, API, worker and web app
 
+## Done in v0.2
+
+- MCP server with 10 tools, run locally over stdio or remotely over Streamable HTTP
+- OAuth 2.1 authorization server for the remote connector: discovery metadata, dynamic client registration, PKCE, hashed and rotating tokens, password consent page with lockout
+- Claude Code plugin and marketplace, with a `what-to-watch` skill
+- Trakt sync over the device flow: ratings and watchlist, automatic refresh, periodic pulls
+- Watched import folder for IMDb exports
+- Ratings are only replaced by newer ones, whatever the source
+- TMDB metadata re-synced before it reaches TMDB's six-month cache limit
+
 ## Next
+
+- [ ] TMDB logo in the attribution, as TMDB's terms ask
+- [ ] Settings page listing connected MCP clients, with a revoke button
+- [ ] Client ID Metadata Document support, which ChatGPT and Claude both prefer over dynamic registration
 
 - [ ] Episode-level tracking and watch dates in the UI (the `watch_events` table already exists)
 - [ ] Use pgvector for candidate retrieval (nearest neighbours of the taste centroid) instead of scoring the whole catalogue in memory

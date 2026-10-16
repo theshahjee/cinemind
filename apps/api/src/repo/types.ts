@@ -15,6 +15,15 @@ export interface LibraryEntry {
   onWatchlist: boolean;
 }
 
+export type RatingSource = "imdb_csv" | "manual" | "trakt";
+
+export interface Integration {
+  provider: string;
+  data: Record<string, unknown>;
+  lastSyncAt?: Date;
+  lastSyncResult?: Record<string, unknown>;
+}
+
 export interface LibraryQuery {
   search?: string;
   genre?: string;
@@ -30,16 +39,23 @@ export interface LibraryQuery {
  */
 export interface Repository {
   upsertTitles(titles: readonly Title[]): Promise<void>;
-  upsertRatings(userId: string, ratings: readonly Rating[], source: "imdb_csv" | "manual"): Promise<void>;
+  /** Insert or update ratings. An existing rating is only replaced by one with the same or a newer date. */
+  upsertRatings(userId: string, ratings: readonly Rating[], source: RatingSource): Promise<void>;
   deleteRating(userId: string, titleId: string): Promise<boolean>;
   getRatings(userId: string): Promise<Rating[]>;
   getTitle(id: string): Promise<Title | undefined>;
   getCatalogue(): Promise<Map<string, Title>>;
+  /** Case-insensitive title search across the whole catalogue, most-voted first. */
+  searchTitles(query: string, limit: number): Promise<Title[]>;
   getLibrary(userId: string, q: LibraryQuery): Promise<{ total: number; items: LibraryEntry[] }>;
   setWatchlist(userId: string, titleId: string, on: boolean): Promise<void>;
   getWatchlist(userId: string): Promise<Title[]>;
   addFeedback(userId: string, titleId: string, kind: FeedbackKind): Promise<void>;
   getFeedback(userId: string): Promise<Feedback[]>;
+  getIntegration(provider: string): Promise<Integration | undefined>;
+  saveIntegration(userId: string, provider: string, data: Record<string, unknown>): Promise<void>;
+  recordSync(provider: string, result: Record<string, unknown>): Promise<void>;
+  deleteIntegration(provider: string): Promise<void>;
   /** Single-user mode: the owner account, created on first use. */
   getOwnerId(): Promise<string>;
 }

@@ -1,7 +1,7 @@
 {
   "name": "cinemind",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Self-hosted movie and TV recommendation engine that learns your taste from your own ratings.",
   "license": "MIT",
   "type": "module",

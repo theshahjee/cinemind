@@ -1,17 +1,20 @@
 import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
-import { importImdbRatings, type ScoredTitle } from "@cinemind/core";
+import { ImportFormatError, type ScoredTitle, type Title } from "@cinemind/core";
 import Fastify, { type FastifyInstance } from "fastify";
 import { extractConstraints, matchesConstraints } from "./ask.js";
+import { importImdbCsv, syncTrakt } from "./imports.js";
 import type { LlmProvider } from "./llm/provider.js";
 import type { FeedbackKind, Repository } from "./repo/types.js";
 import { recommend, tasteSummary } from "./service.js";
+import type { TraktClient } from "./trakt.js";
 
 export interface AppDeps {
   repo: Repository;
   apiToken: string;
   llm?: LlmProvider;
   corsOrigin?: string;
+  trakt?: TraktClient;
   /** Called after an import so a worker can fetch metadata. */
   onTitlesImported?: (ids: string[]) => Promise<void>;
   logger?: boolean;
@@ -23,6 +26,10 @@ function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a);
   const bb = Buffer.from(b);
   return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+function stripEmbedding(t: Title) {
+  return { ...t, embedding: undefined };
 }
 
 function present(s: ScoredTitle) {
@@ -48,18 +55,51 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.post("/api/import/imdb", async (req, reply) => {
     if (typeof req.body !== "string") return reply.code(415).send({ error: "Send the IMDb CSV with content-type text/csv" });
-    let parsed;
     try {
-      parsed = importImdbRatings(req.body);
+      return await importImdbCsv(repo, req.body, deps.onTitlesImported);
     } catch (err) {
-      return reply.code(400).send({ error: (err as Error).message });
+      if (err instanceof ImportFormatError) return reply.code(400).send({ error: err.message });
+      throw err;
     }
-    const userId = await repo.getOwnerId();
-    await repo.upsertTitles(parsed.titles);
-    await repo.upsertRatings(userId, parsed.ratings, "imdb_csv");
-    await deps.onTitlesImported?.(parsed.titles.map((t) => t.id));
-    return { imported: parsed.ratings.length, skipped: parsed.skipped };
   });
+
+  // Catalogue search, used by the MCP connector to turn a name into an id.
+  app.get<{ Querystring: { q: string; limit?: number } }>(
+    "/api/titles/search",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          properties: { q: { type: "string", minLength: 1, maxLength: 200 }, limit: { type: "integer", minimum: 1, maximum: 50, default: 10 } },
+          required: ["q"],
+        },
+      },
+    },
+    async (req) => {
+      const userId = await repo.getOwnerId();
+      const [titles, ratings, watchlist] = await Promise.all([
+        repo.searchTitles(req.query.q, req.query.limit ?? 10),
+        repo.getRatings(userId),
+        repo.getWatchlist(userId),
+      ]);
+      const rated = new Map(ratings.map((r) => [r.titleId, r.rating]));
+      const saved = new Set(watchlist.map((t) => t.id));
+      return titles.map((t) => ({ title: stripEmbedding(t), rating: rated.get(t.id), onWatchlist: saved.has(t.id) }));
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/titles/:id",
+    { schema: { params: { type: "object", properties: { id: TITLE_ID }, required: ["id"] } } },
+    async (req, reply) => {
+      const t = await repo.getTitle(req.params.id);
+      if (!t) return reply.code(404).send({ error: "unknown title" });
+      const userId = await repo.getOwnerId();
+      const rating = (await repo.getRatings(userId)).find((r) => r.titleId === t.id);
+      const onWatchlist = (await repo.getWatchlist(userId)).some((w) => w.id === t.id);
+      return { title: stripEmbedding(t), rating: rating?.rating, ratedAt: rating?.ratedAt, onWatchlist };
+    },
+  );
 
   app.get<{ Querystring: { search?: string; genre?: string; type?: string; minRating?: number; limit?: number; offset?: number } }>(
     "/api/library",
@@ -113,7 +153,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     },
   );
 
-  app.get("/api/watchlist", async () => (await repo.getWatchlist(await repo.getOwnerId())).map((t) => ({ ...t, embedding: undefined })));
+  app.get("/api/watchlist", async () => (await repo.getWatchlist(await repo.getOwnerId())).map(stripEmbedding));
 
   app.put<{ Params: { id: string }; Body: { on: boolean } }>(
     "/api/watchlist/:id",
@@ -190,6 +230,46 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       };
     },
   );
+
+  // Trakt connection. Device flow: start -> user enters code on trakt.tv -> poll until connected.
+  app.get("/api/integrations/trakt", async () => {
+    const i = await repo.getIntegration("trakt");
+    return {
+      configured: Boolean(deps.trakt),
+      connected: Boolean(i),
+      lastSyncAt: i?.lastSyncAt,
+      lastSyncResult: i?.lastSyncResult,
+    };
+  });
+
+  app.post("/api/integrations/trakt/device", async (_req, reply) => {
+    if (!deps.trakt) return reply.code(501).send({ error: "Set TRAKT_CLIENT_ID to enable Trakt" });
+    return deps.trakt.startDeviceAuth();
+  });
+
+  app.post<{ Body: { deviceCode: string } }>(
+    "/api/integrations/trakt/poll",
+    { schema: { body: { type: "object", properties: { deviceCode: { type: "string", minLength: 1, maxLength: 200 } }, required: ["deviceCode"] } } },
+    async (req, reply) => {
+      if (!deps.trakt) return reply.code(501).send({ error: "Trakt is not configured" });
+      const result = await deps.trakt.pollDeviceAuth(req.body.deviceCode);
+      if (result.status !== "connected") return { status: result.status };
+      await repo.saveIntegration(await repo.getOwnerId(), "trakt", result.tokens as unknown as Record<string, unknown>);
+      const sync = await syncTrakt(repo, deps.trakt, deps.onTitlesImported);
+      return { status: "connected", sync };
+    },
+  );
+
+  app.post("/api/integrations/trakt/sync", async (_req, reply) => {
+    if (!deps.trakt) return reply.code(501).send({ error: "Trakt is not configured" });
+    if (!(await repo.getIntegration("trakt"))) return reply.code(409).send({ error: "Trakt is not connected" });
+    return syncTrakt(repo, deps.trakt, deps.onTitlesImported);
+  });
+
+  app.delete("/api/integrations/trakt", async () => {
+    await repo.deleteIntegration("trakt");
+    return { ok: true };
+  });
 
   return app;
 }

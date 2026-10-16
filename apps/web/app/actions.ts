@@ -30,3 +30,44 @@ export async function importCsv(_prev: unknown, form: FormData): Promise<{ messa
     return { ok: false, message: (err as Error).message };
   }
 }
+
+export interface TraktDevice {
+  device_code: string;
+  user_code: string;
+  verification_url: string;
+  expires_in: number;
+  interval: number;
+}
+
+export async function startTrakt(): Promise<{ ok: true; device: TraktDevice } | { ok: false; error: string }> {
+  try {
+    return { ok: true, device: await api<TraktDevice>("/api/integrations/trakt/device", { method: "POST" }) };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function pollTrakt(deviceCode: string): Promise<{ status: string; error?: string }> {
+  try {
+    const res = await api<{ status: string }>("/api/integrations/trakt/poll", { method: "POST", body: JSON.stringify({ deviceCode }) });
+    if (res.status === "connected") revalidatePath("/", "layout");
+    return res;
+  } catch (err) {
+    return { status: "error", error: (err as Error).message };
+  }
+}
+
+export async function syncTraktNow(): Promise<string> {
+  try {
+    const r = await api<{ ratings: number; watchlist: number; newTitles: number; skippedNoImdbId: number }>("/api/integrations/trakt/sync", { method: "POST" });
+    revalidatePath("/", "layout");
+    return `Synced ${r.ratings} ratings and ${r.watchlist} watchlist titles (${r.newTitles} new to the catalogue, ${r.skippedNoImdbId} skipped without an IMDb id).`;
+  } catch (err) {
+    return (err as Error).message;
+  }
+}
+
+export async function disconnectTrakt() {
+  await api("/api/integrations/trakt", { method: "DELETE" });
+  revalidatePath("/connections");
+}

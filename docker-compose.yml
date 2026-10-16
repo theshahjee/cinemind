@@ -41,6 +41,29 @@ services:
         required: false
     environment:
       DATABASE_URL: postgres://cinemind:cinemind@db:5432/cinemind
+      IMPORT_DIR: /import
+    volumes:
+      # Drop IMDb exports into ./data/import; they're imported within a minute.
+      - ./data/import:/import
+    depends_on:
+      api:
+        condition: service_started
+
+  # Remote MCP connector for Claude and ChatGPT. Only start it if you'll expose it over HTTPS:
+  #   docker compose --profile connector up
+  mcp:
+    profiles: ["connector"]
+    build:
+      context: .
+      dockerfile: apps/mcp/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://cinemind:cinemind@db:5432/cinemind
+      CINEMIND_API_URL: http://api:4000
+    ports:
+      - "4200:4200"
     depends_on:
       api:
         condition: service_started

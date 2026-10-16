@@ -1,0 +1,8 @@
+{
+  "name": "cinemind",
+  "version": "0.2.0",
+  "description": "Connects Claude Code to your own CineMind server for recommendations, taste analysis and watchlist help.",
+  "author": { "name": "Abdullah Mughees" },
+  "homepage": "https://github.com/theshahjee/cinemind",
+  "license": "MIT"
+}

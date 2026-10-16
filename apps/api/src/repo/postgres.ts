@@ -1,6 +1,6 @@
 import type { Rating, Title, TitleType } from "@cinemind/core";
 import pg from "pg";
-import type { Feedback, FeedbackKind, LibraryQuery, Repository } from "./types.js";
+import type { Feedback, FeedbackKind, Integration, LibraryQuery, RatingSource, Repository } from "./types.js";
 
 interface TitleRow {
   id: string;
@@ -74,13 +74,14 @@ export class PostgresRepository implements Repository {
     );
   }
 
-  async upsertRatings(userId: string, ratings: readonly Rating[], source: "imdb_csv" | "manual") {
+  async upsertRatings(userId: string, ratings: readonly Rating[], source: RatingSource) {
     if (ratings.length === 0) return;
     await this.pool.query(
       `INSERT INTO ratings (user_id, title_id, rating, rated_at, source)
        SELECT $1, x."titleId", x.rating, x."ratedAt", $3
        FROM jsonb_to_recordset($2::jsonb) AS x("titleId" text, rating smallint, "ratedAt" timestamptz)
-       ON CONFLICT (user_id, title_id) DO UPDATE SET rating = EXCLUDED.rating, rated_at = EXCLUDED.rated_at, source = EXCLUDED.source`,
+       ON CONFLICT (user_id, title_id) DO UPDATE SET rating = EXCLUDED.rating, rated_at = EXCLUDED.rated_at, source = EXCLUDED.source
+       WHERE ratings.rated_at <= EXCLUDED.rated_at`,
       [userId, JSON.stringify(ratings), source],
     );
   }
@@ -115,6 +116,40 @@ export class PostgresRepository implements Repository {
       [this.embeddingModel],
     );
     return new Map(rows.map((r) => [r.id, toTitle(r)]));
+  }
+
+  async searchTitles(query: string, limit: number) {
+    const { rows } = await this.pool.query<TitleRow>(
+      `SELECT ${TITLE_COLUMNS} FROM titles t WHERE t.title ILIKE $1
+       ORDER BY (lower(t.title) = lower($2)) DESC, t.num_votes DESC NULLS LAST LIMIT $3`,
+      [`%${query.replace(/[%_\\]/g, (c) => `\\${c}`)}%`, query, limit],
+    );
+    return rows.map(toTitle);
+  }
+
+  async getIntegration(provider: string): Promise<Integration | undefined> {
+    const { rows } = await this.pool.query<{ data: Record<string, unknown>; last_sync_at: Date | null; last_sync_result: Record<string, unknown> | null }>(
+      "SELECT data, last_sync_at, last_sync_result FROM integrations WHERE provider = $1",
+      [provider],
+    );
+    const r = rows[0];
+    return r && { provider, data: r.data, lastSyncAt: r.last_sync_at ?? undefined, lastSyncResult: r.last_sync_result ?? undefined };
+  }
+
+  async saveIntegration(userId: string, provider: string, data: Record<string, unknown>) {
+    await this.pool.query(
+      `INSERT INTO integrations (provider, user_id, data) VALUES ($1, $2, $3)
+       ON CONFLICT (provider) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+      [provider, userId, data],
+    );
+  }
+
+  async recordSync(provider: string, result: Record<string, unknown>) {
+    await this.pool.query("UPDATE integrations SET last_sync_at = now(), last_sync_result = $2 WHERE provider = $1", [provider, result]);
+  }
+
+  async deleteIntegration(provider: string) {
+    await this.pool.query("DELETE FROM integrations WHERE provider = $1", [provider]);
   }
 
   async getLibrary(userId: string, q: LibraryQuery) {

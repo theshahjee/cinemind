@@ -1,5 +1,12 @@
+import { mkdir, readdir, readFile, rename } from "node:fs/promises";
+import { join } from "node:path";
+import { ImportFormatError } from "@cinemind/core";
 import pg from "pg";
 import { loadConfig } from "./config.js";
+import { importImdbCsv, syncTrakt } from "./imports.js";
+import { enqueueMetadataSync } from "./jobs.js";
+import { PostgresRepository } from "./repo/postgres.js";
+import { TraktClient } from "./trakt.js";
 import { createLlm } from "./llm/index.js";
 import { TmdbClient } from "./tmdb.js";
 
@@ -9,6 +16,9 @@ import { TmdbClient } from "./tmdb.js";
  *
  *   sync_metadata  -> fetch TMDB details for a title, then queue an embedding
  *   embed_title    -> embed overview + genres + keywords with the configured model
+ *
+ * Between jobs it also imports IMDb CSVs dropped into IMPORT_DIR and, when
+ * Trakt is connected, pulls new Trakt ratings every TRAKT_SYNC_HOURS.
  */
 const config = loadConfig();
 if (!config.databaseUrl) throw new Error("The worker needs DATABASE_URL");
@@ -16,6 +26,10 @@ const pool = new pg.Pool({ connectionString: config.databaseUrl });
 const tmdb = config.tmdbToken ? new TmdbClient(config.tmdbToken) : undefined;
 const llm = createLlm(config);
 const MAX_ATTEMPTS = 5;
+const repo = new PostgresRepository(pool, config.embeddingModel);
+const trakt =
+  config.traktClientId ? new TraktClient(config.traktClientId, config.traktClientSecret) : undefined;
+const enqueue = (ids: string[]) => enqueueMetadataSync(pool, ids);
 
 interface Job {
   id: number;
@@ -69,11 +83,65 @@ async function embedTitle(titleId: string) {
   );
 }
 
+/** Import every .csv in the folder, then move it to imported/ (or failed/ if it isn't an IMDb export). */
+async function scanImportDir(dir: string) {
+  const files = (await readdir(dir).catch(() => [])).filter((f) => f.toLowerCase().endsWith(".csv"));
+  for (const file of files) {
+    const src = join(dir, file);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    try {
+      const res = await importImdbCsv(repo, await readFile(src, "utf8"), enqueue);
+      await mkdir(join(dir, "imported"), { recursive: true });
+      await rename(src, join(dir, "imported", `${stamp}-${file}`));
+      console.log(`imported ${res.imported} ratings from ${file} (${res.skipped.length} rows skipped)`);
+    } catch (err) {
+      if (!(err instanceof ImportFormatError)) throw err;
+      await mkdir(join(dir, "failed"), { recursive: true });
+      await rename(src, join(dir, "failed", `${stamp}-${file}`));
+      console.error(`${file} is not an IMDb ratings export: ${err.message}`);
+    }
+  }
+}
+
+let lastTraktSync = 0;
+let lastStaleCheck = 0;
+let lastScan = 0;
+
+async function periodic() {
+  const now = Date.now();
+  if (config.importDir && now - lastScan > 30_000) {
+    lastScan = now;
+    await scanImportDir(config.importDir);
+  }
+  // TMDB's terms cap cached data at six months, so refresh metadata older than ~5 months.
+  if (tmdb && now - lastStaleCheck > 24 * 3_600_000) {
+    lastStaleCheck = now;
+    await pool.query(
+      `INSERT INTO jobs (kind, payload)
+       SELECT 'sync_metadata', jsonb_build_object('titleId', id) FROM titles
+       WHERE metadata_source = 'tmdb' AND metadata_synced_at < now() - interval '150 days'
+       ORDER BY metadata_synced_at LIMIT 1000`,
+    );
+  }
+  if (trakt && config.traktSyncHours > 0 && now - lastTraktSync > config.traktSyncHours * 3_600_000) {
+    lastTraktSync = now;
+    if (await repo.getIntegration("trakt")) {
+      const res = await syncTrakt(repo, trakt, enqueue);
+      console.log(`trakt sync: ${JSON.stringify(res)}`);
+    }
+  }
+}
+
 let running = true;
 process.on("SIGTERM", () => (running = false));
 process.on("SIGINT", () => (running = false));
 
 while (running) {
+  try {
+    await periodic();
+  } catch (err) {
+    console.error(`periodic task failed: ${(err as Error).message}`);
+  }
   const job = await claim();
   if (!job) {
     await new Promise((r) => setTimeout(r, 2000));

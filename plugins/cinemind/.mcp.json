@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cinemind": {
+      "type": "http",
+      "url": "${CINEMIND_MCP_URL:-http://localhost:4200/mcp}"
+    }
+  }
+}

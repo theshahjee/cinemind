@@ -8,6 +8,9 @@ export interface ImdbImportResult {
   skipped: { line: number; reason: string }[];
 }
 
+/** The file isn't a usable IMDb ratings export (as opposed to an unexpected failure). */
+export class ImportFormatError extends Error {}
+
 const REQUIRED = ["Const", "Your Rating", "Date Rated", "Title"] as const;
 
 const TYPE_MAP: Record<string, TitleType> = {
@@ -30,11 +33,11 @@ const TYPE_MAP: Record<string, TitleType> = {
 export function importImdbRatings(csv: string): ImdbImportResult {
   const rows = parseCsv(csv);
   const header = rows[0];
-  if (!header) throw new Error("CSV is empty");
+  if (!header) throw new ImportFormatError("CSV is empty");
 
   const col = new Map(header.map((h, i) => [h.trim(), i]));
   for (const name of REQUIRED) {
-    if (!col.has(name)) throw new Error(`Missing required column "${name}". Is this an IMDb ratings export?`);
+    if (!col.has(name)) throw new ImportFormatError(`Missing required column "${name}". Is this an IMDb ratings export?`);
   }
   const get = (r: string[], name: string) => {
     const i = col.get(name);

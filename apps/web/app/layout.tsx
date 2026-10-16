@@ -16,6 +16,7 @@ const NAV = [
   { href: "/ask", label: "Ask" },
   { href: "/library", label: "Library" },
   { href: "/taste", label: "Taste" },
+  { href: "/connections", label: "Connections" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -40,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
         <footer className="mx-auto max-w-6xl px-4 pb-10 pt-6 text-xs text-muted sm:px-6">
-          This product uses the TMDB API but is not endorsed or certified by TMDB. Ratings import from your own IMDb export.
+          This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB. Information courtesy of IMDb (imdb.com), used under its non-commercial terms.
         </footer>
       </body>
     </html>

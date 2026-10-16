@@ -16,6 +16,12 @@ export interface Config {
   embeddingBaseUrl?: string;
   embeddingApiKey?: string;
   corsOrigin: string;
+  traktClientId?: string;
+  traktClientSecret?: string;
+  /** Hours between automatic Trakt syncs in the worker. 0 disables. */
+  traktSyncHours: number;
+  /** Folder the worker watches for IMDb CSV exports. */
+  importDir?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -46,5 +52,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     embeddingBaseUrl: env.EMBEDDING_BASE_URL || undefined,
     embeddingApiKey: env.EMBEDDING_API_KEY || undefined,
     corsOrigin: env.CORS_ORIGIN ?? "http://localhost:3000",
+    traktClientId: env.TRAKT_CLIENT_ID || undefined,
+    traktClientSecret: env.TRAKT_CLIENT_SECRET || undefined,
+    traktSyncHours: Number(env.TRAKT_SYNC_HOURS ?? 6),
+    importDir: env.IMPORT_DIR || undefined,
   };
 }

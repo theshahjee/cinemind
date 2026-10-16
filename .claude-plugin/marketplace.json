@@ -1,0 +1,12 @@
+{
+  "name": "cinemind",
+  "owner": { "name": "Abdullah Mughees" },
+  "metadata": { "description": "Plugins for CineMind, the self-hosted film and TV recommender." },
+  "plugins": [
+    {
+      "name": "cinemind",
+      "source": "./plugins/cinemind",
+      "description": "Connects Claude Code to your own CineMind server for recommendations, taste analysis and watchlist help."
+    }
+  ]
+}

@@ -13,6 +13,8 @@ export async function migrate(databaseUrl: string, log: (msg: string) => void = 
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   try {
+    // Several services migrate on startup; the lock makes them take turns.
+    await client.query("SELECT pg_advisory_lock(728461)");
     await client.query(
       "CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
     );
@@ -38,6 +40,7 @@ export async function migrate(databaseUrl: string, log: (msg: string) => void = 
     if (applied.length === 0) log("database is up to date");
     return applied;
   } finally {
+    await client.query("SELECT pg_advisory_unlock(728461)").catch(() => {});
     await client.end();
   }
 }
